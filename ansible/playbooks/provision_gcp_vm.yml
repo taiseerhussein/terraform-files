@@ -1,0 +1,73 @@
+---
+- name: Provision a GCP VM
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    project_id: "{{ lookup('env', 'GCP_PROJECT') | default(omit) }}"
+    zone: "us-central1-a"
+    instance_name: "example-vm"
+    machine_type: "e2-medium"
+    disk_size_gb: 20
+    # Using image family selfLink for latest Debian 12
+    source_image: "projects/debian-cloud/global/images/family/debian-12"
+    network: "default"
+    subnetwork: null
+    assign_external_ip: true
+    preemptible: false
+    labels: {}
+    tags: []
+    service_account_email: "default"
+    scopes:
+      - https://www.googleapis.com/auth/cloud-platform
+
+    # Credential handling
+    # Prefer AAP's GCP Service Account credential, which sets env vars
+    # Alternatively set GOOGLE_APPLICATION_CREDENTIALS to a JSON key file
+    auth_kind: "serviceaccount"
+    service_account_file: "{{ lookup('env', 'GOOGLE_APPLICATION_CREDENTIALS') | default(omit) }}"
+
+  tasks:
+    - name: "Fail fast if project_id is not provided"
+      ansible.builtin.fail:
+        msg: "project_id is required (set var project_id or env GCP_PROJECT)"
+      when: project_id is not defined
+
+    - name: Ensure required collection is present (local execution)
+      ansible.builtin.assert:
+        that:
+          - true
+        success_msg: "google.cloud collection must be installed in the EE (requirements.yml provided)"
+
+    - name: Create GCP VM instance
+      google.cloud.gcp_compute_instance:
+        state: present
+        project: "{{ project_id }}"
+        zone: "{{ zone }}"
+        name: "{{ instance_name }}"
+        machine_type: "{{ machine_type }}"
+        scheduling:
+          preemptible: "{{ preemptible }}"
+        disks:
+          - auto_delete: true
+            boot: true
+            initialize_params:
+              source_image: "{{ source_image }}"
+              disk_size_gb: "{{ disk_size_gb }}"
+        labels: "{{ labels }}"
+        tags:
+          items: "{{ tags }}"
+        network_interfaces:
+          - network: "{{ network }}"
+            subnetwork: "{{ subnetwork | default(omit) }}"
+            access_configs: "{{ [{'name': 'External NAT', 'type': 'ONE_TO_ONE_NAT'}] if assign_external_ip else omit }}"
+        service_accounts:
+          - email: "{{ service_account_email }}"
+            scopes: "{{ scopes }}"
+        auth_kind: "{{ auth_kind }}"
+        service_account_file: "{{ service_account_file | default(omit) }}"
+      register: create_result
+
+    - name: Show instance details
+      ansible.builtin.debug:
+        var: create_result

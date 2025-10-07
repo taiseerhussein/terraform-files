@@ -5,4 +5,4 @@ subnet_id     = "subnet-0e872e25395b17d20"
 key_name      = "eda_key"
 instance_name = "git-clone-demo-instance"
 
-security_group_ids = ["sg-085986a21981ac485"]
+security_group_ids = ["sg-0d6840f1ac9418b22"]
